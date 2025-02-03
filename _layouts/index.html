@@ -12,42 +12,29 @@
     <header class="main-header">
       <nav class="navigation-bar">
         <ul class="link-list">
-          <div class="link-list-icons">
-            <li class="link-list-item tooltip">
-              <span class="tooltiptext">My Github</span>
-              <a href="https://github.com/Plutone11011"
-                ><img src="assets/github32.png" />
-              </a>
-            </li>
-            <li class="link-list-item tooltip">
-              <span class="tooltiptext">My Linkedin</span>
-              <a href="https://www.linkedin.com/in/lorenzo-borelli-71355a19b/"
-                ><img src="assets/linkedin32.png" />
-              </a>
-            </li>
-          </div>
-          <!--<div class="link-list-texts">
-            <li class="link-list-item tooltip">
-              <span class="tooltiptext">My articles</span><a>ARTICLES</a>
-            </li>
-            <li class="link-list-item tooltip">
-              <span class="tooltiptext">My projects</span><a>PROJECTS</a>
-            </li>
-          </div>-->
+          <li class="link-list-item tooltip">
+            <span class="tooltiptext">My Github</span>
+            <a href="https://github.com/Plutone11011"
+              ><img src="assets/github32.png" />
+            </a>
+          </li>
+          <li class="link-list-item tooltip">
+            <span class="tooltiptext">My Linkedin</span>
+            <a href="https://www.linkedin.com/in/lorenzo-borelli-71355a19b/"
+              ><img src="assets/linkedin32.png" />
+            </a>
+          </li>
         </ul>
       </nav>
     </header>
 
     <section class="intro-section">
+      <h1 class="intro-heading">About me</h1>
       <div class="intro-content">
-        <h1 class="intro-heading">About me</h1>
-        <div class="intro-presentation">
-          <p class="intro-text">
-            Hi, I'm Lorenzo, an AI engineer,
-            This website is a blog where I share personal projects
-            I'm working on and articles about topics I'm interested in.
-          </p>
-        </div>
+        <p class="intro-text">
+          Hi, I'm Lorenzo, an AI engineer. This website is a blog where I share
+          personal projects I'm working on and articles about topics I'm interested in.
+        </p>
         <div class="intro-img">
           <img class="profile-img" src="assets/propic.jpg" />
         </div>
@@ -56,14 +43,11 @@
 
     <section class="posts-section">
       <h1 class="posts-heading">Latest Posts</h1>
-
       <ul class="posts">
         {% for post in site.posts %}
-        <li>
-          <a href="{{ post.url }}" class="">{{ post.title }}</a>
-        </li>
-        <li>
-          <span>
+        <li class="post-item">
+          <span class="post-title"><a href="{{ post.url }}">{{ post.title }}</a></span>
+          <span class="post-date">
             {% assign date_arr = post.date | split: " " %} {{ date_arr[0] }}
           </span>
         </li>
