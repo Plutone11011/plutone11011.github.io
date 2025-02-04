@@ -1,0 +1,10 @@
+[package]
+name = "linear_classification"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+csv = "1.3.1"
+linfa = "0.7.1"
+plotters = "0.3.7"
+ndarray = "0.15.6"
