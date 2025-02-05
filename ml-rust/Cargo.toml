@@ -1,0 +1,11 @@
+[package]
+name = "ml-rust"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [
+    "linear_classification",
+]
+
+[dependencies]

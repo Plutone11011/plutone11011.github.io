@@ -8,3 +8,5 @@ csv = "1.3.1"
 linfa = "0.7.1"
 plotters = "0.3.7"
 ndarray = "0.15.6"
+linfa-logistic = "0.7.1"
+linfa-datasets = { version = "0.7.1", features = ["iris"] }
