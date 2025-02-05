@@ -1,18 +1,10 @@
-
 use linfa::prelude::*;
-use std::error::Error;
 use ndarray::prelude::*;
-use csv::ReaderBuilder;
-use linfa_logistic::MultiLogisticRegression;
+use ndarray::Array1;
+use linfa_logistic::{MultiLogisticRegression, MultiFittedLogisticRegression};
+use linfa::metrics::ConfusionMatrix;
+use rand::prelude::*;
 
-#[derive(Debug)]
-struct IrisData {
-    sepal_length: f64,
-    sepal_width: f64,
-    petal_length: f64,
-    petal_width: f64,
-    class_plant: String
-}
 
 
 /// Loads the Iris dataset from a CSV file and returns a linfa Dataset
@@ -21,8 +13,9 @@ pub fn load_iris_dataset(split_ratio: f32) -> (Dataset<f64, usize, Ix1>, Dataset
     // let mut reader = ReaderBuilder::new()
     //     .has_headers(false)
     //     .from_path(path)?;
-
-    let (train, test): (Dataset<f64, usize, Ix1>, Dataset<f64, usize, Ix1>) = linfa_datasets::iris().split_with_ratio(split_ratio);
+    let mut rng = rand::thread_rng();
+    
+    let (train, test): (Dataset<f64, usize, Ix1>, Dataset<f64, usize, Ix1>) = linfa_datasets::iris().shuffle(&mut rng).split_with_ratio(split_ratio);
     println!(
         "Fit Multinomial Logistic Regression classifier with #{} training points",
         train.nsamples()
@@ -34,38 +27,47 @@ pub fn load_iris_dataset(split_ratio: f32) -> (Dataset<f64, usize, Ix1>, Dataset
 }
 
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let (train, test) = load_iris_dataset(0.9);
+fn fit_logistic_regressor(train_set: &Dataset<f64, usize, Ix1>) -> MultiFittedLogisticRegression<f64, usize> {
+    
 
     println!(
         "Fit Multinomial Logistic Regression classifier with #{} training points",
-        train.nsamples()
+        train_set.nsamples()
     );
 
     // fit a Logistic regression model with 150 max iterations
     let model = MultiLogisticRegression::default()
         .max_iterations(50)
-        .fit(&train)
+        .fit(train_set)
         .unwrap();
 
+    model
+
+}
+
+fn predict_class(test_set: &Dataset<f64, usize, Ix1>, model: MultiFittedLogisticRegression<f64, usize>) 
+    -> (Array1<usize>, ConfusionMatrix<usize>) {
     println!(
         "Predict class of #{} testing points",
-        test.nsamples()
+        test_set.nsamples()
     );
-    // predict and map targets
-    let pred = model.predict(&test);
 
-    // create a confusion matrix
-    let cm = pred.confusion_matrix(&test).unwrap();
+    let pred = model.predict(test_set);
+    let cm = pred.confusion_matrix(test_set).unwrap();
+    (pred, cm)
+}
 
-    // Print the confusion matrix, this will print a table with four entries. On the diagonal are
-    // the number of true-positive and true-negative predictions, off the diagonal are
-    // false-positive and false-negative
-    println!("{:?}", cm);
+fn main(){
+    let (train_set, test_set) = load_iris_dataset(0.9);
 
-    // Calculate the accuracy and Matthew Correlation Coefficient (cross-correlation between
-    // predicted and targets)
-    println!("accuracy {}, MCC {}", cm.accuracy(), cm.mcc());
+    let model = fit_logistic_regressor(&train_set);
 
-    Ok(())
+    let (prediction, cm) = predict_class(&test_set, model);
+
+    let n_samples_test = test_set.nsamples();
+    println!("Predictions: {:?}", prediction.slice(s![0..n_samples_test]));
+    println!("Ground truth: {:?}", test_set.targets.slice(s![0..n_samples_test])); 
+
+    println!("Confusion matrix {:?}", cm);
+    
 }
