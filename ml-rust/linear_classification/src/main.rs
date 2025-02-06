@@ -1,3 +1,4 @@
+
 use linfa::prelude::*;
 use ndarray::prelude::*;
 use ndarray::Array1;
@@ -13,16 +14,18 @@ pub fn load_iris_dataset(split_ratio: f32) -> (Dataset<f64, usize, Ix1>, Dataset
     // let mut reader = ReaderBuilder::new()
     //     .has_headers(false)
     //     .from_path(path)?;
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
     
-    let (train, test): (Dataset<f64, usize, Ix1>, Dataset<f64, usize, Ix1>) = linfa_datasets::iris().shuffle(&mut rng).split_with_ratio(split_ratio);
+    let (train, test): (Dataset<f64, usize, Ix1>, Dataset<f64, usize, Ix1>) = linfa_datasets::iris().shuffle(&mut rng)
+        .with_feature_names(vec!["sepal length", "sepal width", "petal length", "petal width"])
+        .split_with_ratio(split_ratio);
     println!(
         "Fit Multinomial Logistic Regression classifier with #{} training points",
         train.nsamples()
     );
+    println!("Feature names {:?}", train.feature_names());
     println!("Dataset records shape: {:?}", train.records.shape());
     println!("Dataset targets shape: {:?}", train.targets.shape());
-    println!("Dataset first targets: {:?}", train.targets.slice(s![0..10]));
     (train,test)
 }
 
@@ -59,7 +62,9 @@ fn predict_class(test_set: &Dataset<f64, usize, Ix1>, model: MultiFittedLogistic
 
 fn main(){
     let (train_set, test_set) = load_iris_dataset(0.9);
-
+    let corr_matrix = train_set.pearson_correlation();
+    println!("Pearson correlation matrix of training features");
+    println!("{}", corr_matrix);
     let model = fit_logistic_regressor(&train_set);
 
     let (prediction, cm) = predict_class(&test_set, model);
