@@ -91,7 +91,9 @@ fn symm_corr_matrix(corr_matrix: &PearsonCorrelation<f64>, train_set: &Dataset<f
 
 
 fn draw_corr_matrix(sym_cor_matrix: &Array2<f32>) -> Result<(), Box<dyn Error>>{
-    let root = BitMapBackend::new("corr_matrix.jpg", (800, 800)).into_drawing_area();
+    let drawing_area_width = 800;
+    let drawing_area_height = 800;
+    let root = BitMapBackend::new("corr_matrix.jpg", (drawing_area_width, drawing_area_height)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let corr_matrix_dim = sym_cor_matrix.shape()[0];
@@ -113,8 +115,13 @@ fn draw_corr_matrix(sym_cor_matrix: &Array2<f32>) -> Result<(), Box<dyn Error>>{
         .draw()?;
     
     let range = 0usize..corr_matrix_dim;
-
-
+    // Get the plotting area dimensions
+    let plotting_area = chart.plotting_area();
+    let (width, height) = plotting_area.dim_in_pixel();
+    // Calculate cell size
+    let cell_width = width / corr_matrix_dim as u32;
+    let cell_height = height / corr_matrix_dim as u32;
+    println!("{} {}", cell_height, cell_width);
     chart.draw_series(
         range
             .clone()
@@ -152,7 +159,7 @@ fn draw_corr_matrix(sym_cor_matrix: &Array2<f32>) -> Result<(), Box<dyn Error>>{
 
                 EmptyElement::at((x, y))
                     + Rectangle::new(
-                        [(0, 0), (54, 50)],
+                        [(0, 0), (cell_width as i32, cell_height as i32)],
                         rgb.filled(),
                     )
                     + Text::new(
