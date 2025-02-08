@@ -112,6 +112,11 @@ a:hover {
   flex: 1;
 }
 
+.post-title > a {
+  color: rgb(101, 101, 253);
+}
+
+
 .post-date {
   text-align: right;
   flex: 0 0 100px;
