@@ -12,13 +12,11 @@ use plotters::prelude::*;
 /// Loads the Iris dataset from a CSV file and returns a linfa Dataset
 pub fn load_iris_dataset(split_ratio: f32) -> (Dataset<f64, usize, Ix1>, Dataset<f64, usize, Ix1>){
 
-    // let mut reader = ReaderBuilder::new()
-    //     .has_headers(false)
-    //     .from_path(path)?;
     let mut rng = thread_rng();
-    
+
+    let feature_names = linfa_datasets::iris().feature_names();
     let (train, test): (Dataset<f64, usize, Ix1>, Dataset<f64, usize, Ix1>) = linfa_datasets::iris().shuffle(&mut rng)
-        .with_feature_names(vec!["sepal length", "sepal width", "petal length", "petal width"])
+        .with_feature_names(feature_names)
         .split_with_ratio(split_ratio);
     println!(
         "Fit Multinomial Logistic Regression classifier with #{} training points",
@@ -70,14 +68,11 @@ fn symm_corr_matrix(corr_matrix: &PearsonCorrelation<f64>, train_set: &Dataset<f
     let mut k = 0;
     for i in 0..n_features {
         for j in i+1..n_features {
-            if i == j{
-                matrix_of_coeff[[i, j]] = 1.0;
-            }
-            else {
-                matrix_of_coeff[[i, j]] = corr_coefficients[k] as f32;
-                matrix_of_coeff[[j, i]] = corr_coefficients[k] as f32;
-                k += 1;
-            }
+           
+            matrix_of_coeff[[i, j]] = corr_coefficients[k] as f32;
+            matrix_of_coeff[[j, i]] = corr_coefficients[k] as f32;
+            k += 1;
+            
             
         }
     }
@@ -90,17 +85,20 @@ fn symm_corr_matrix(corr_matrix: &PearsonCorrelation<f64>, train_set: &Dataset<f
 }
 
 
-fn draw_corr_matrix(sym_cor_matrix: &Array2<f32>) -> Result<(), Box<dyn Error>>{
-    let drawing_area_width = 800;
-    let drawing_area_height = 800;
+fn draw_corr_matrix(sym_cor_matrix: &Array2<f32>, feature_names: &Vec<String>) -> Result<(), Box<dyn Error>>{
+    let drawing_area_width = 1000;
+    let drawing_area_height = 1000;
     let root = BitMapBackend::new("corr_matrix.jpg", (drawing_area_width, drawing_area_height)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let corr_matrix_dim = sym_cor_matrix.shape()[0];
+    println!("Correlation matrix dimension {}", corr_matrix_dim);
+    println!("Feature names {:?}", feature_names);
     // create chart
     let mut chart = ChartBuilder::on(&root)
-        .caption("Cov Matrix", ("sans-serif", 60))
+        .caption("Correlation Matrix", ("sans-serif", 60))
         .margin(10)
+        .margin_left(80)
         .top_x_label_area_size(40)
         .y_label_area_size(40)
         .build_cartesian_2d(0i32..corr_matrix_dim as i32, corr_matrix_dim as i32..0i32)?;
@@ -111,6 +109,24 @@ fn draw_corr_matrix(sym_cor_matrix: &Array2<f32>) -> Result<(), Box<dyn Error>>{
         .y_labels(corr_matrix_dim)
         .x_label_offset(30)
         .y_label_offset(25)
+        .x_label_formatter(&|x| {
+            
+            if *x < corr_matrix_dim as i32{
+                feature_names[*x as usize].to_string()
+            }
+            else {
+                "".to_string()
+            }
+        })
+        .y_label_formatter(&|y|{
+            
+            if *y < corr_matrix_dim as i32{
+                feature_names[*y as usize].to_string()
+            }
+            else {
+                "".to_string()
+            }
+        })
         .label_style(("sans-serif", 20))
         .draw()?;
     
@@ -180,7 +196,7 @@ fn main(){
     let corr_matrix = train_set.pearson_correlation();
     println!("Pearson correlation matrix of training features");
     println!("{}", corr_matrix);
-    let _ = draw_corr_matrix(&symm_corr_matrix(&corr_matrix, &train_set));
+    let _ = draw_corr_matrix(&symm_corr_matrix(&corr_matrix, &train_set), &train_set.feature_names());
     let model = fit_logistic_regressor(&train_set);
 
     let (prediction, cm) = predict_class(&test_set, model);
