@@ -1,0 +1,11 @@
+[package]
+name = "clustering"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+linfa = "0.7.1"
+linfa-clustering = "0.7.1"
+linfa-datasets = "0.7.1"
+ndarray = "0.16.1"
+plotters = "0.3.7"
