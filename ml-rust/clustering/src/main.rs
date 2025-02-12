@@ -39,11 +39,17 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
     let mut ctx = ChartBuilder::on(&root_area)
         .set_label_area_size(LabelAreaPosition::Left, 40)
         .set_label_area_size(LabelAreaPosition::Bottom, 40)
+        .margin_bottom(50)
+        .margin_left(80)
         .caption("Clusters", ("sans-serif", 40))
         .build_cartesian_2d(-5f64..10f64, -5f64..10f64)
         .unwrap();
 
-    ctx.configure_mesh().draw().unwrap();
+    ctx.configure_mesh()
+        // .x_labels(0)
+        // .y_labels(0)
+        // .label_style(("sans-serif", 20))
+        .draw().unwrap();
 
     ctx.draw_series(
         c1.iter().map(|point| TriangleMarker::new(*point, 5, &BLUE)),
@@ -52,6 +58,9 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
 
     ctx.draw_series(c2.iter().map(|point| Circle::new(*point, 5, &RED)))
         .unwrap();
+
+    root_area.draw_text(&feature_names[0],  &("sans-serif", 20).into_text_style(&root_area), (500, 970))?;
+    root_area.draw_text(&feature_names[1],  &("sans-serif", 20).into_text_style(&root_area), (10, 500))?;
     // ctx.draw_series(PointSeries::<_,_,Circle<_,_>,_>::new(c1, c1_size, &BLUE))
     //     .unwrap();
 
@@ -65,10 +74,11 @@ fn main() {
     println!("Hello, world!");
 
     let ds = load_iris_dataset();
-    
+    let feature_names = ds.feature_names();
     // let's reduce to two dimensions
-    let ds_small = DatasetBase::from(ds.records.slice(s![..,0..2])).to_owned();
-    let feature_names = ds_small.feature_names();
+    let ds_small = DatasetBase::from(ds.records.slice(s![..,0..2]))
+        .with_feature_names(feature_names[0..2].to_vec())
+        .to_owned();
     // Our random number generator, seeded for reproducibility
     let seed = 42;
     let mut rng = thread_rng();
@@ -94,7 +104,7 @@ fn main() {
 
 
     let clusters = model.predict(ds_small);
-    draw_clusters(clusters, &feature_names);
+    let _ = draw_clusters(clusters, &feature_names[0..2].to_vec());
     
     
 }
