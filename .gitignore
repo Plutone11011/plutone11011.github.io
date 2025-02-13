@@ -8,3 +8,5 @@ Gemfile.lock
 .vscode
 
 ml-rust/**/target
+
+*.jpg

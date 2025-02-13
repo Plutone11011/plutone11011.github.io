@@ -33,7 +33,9 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
     
     let drawing_area_width = 1000;
     let drawing_area_height = 1000;
-    let root_area = BitMapBackend::new("clusters_iris.jpg", (drawing_area_width, drawing_area_height)).into_drawing_area();
+    let file_name = format!("clusters_iris_{}.jpg", feature_names.join("_"));
+    println!("File name {}", file_name);
+    let root_area = BitMapBackend::new(&file_name, (drawing_area_width, drawing_area_height)).into_drawing_area();
     root_area.fill(&WHITE)?;
 
     let mut ctx = ChartBuilder::on(&root_area)
@@ -70,17 +72,13 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
     Ok(())
 }
 
-fn main() {
-    println!("Hello, world!");
 
-    let ds = load_iris_dataset();
-    let feature_names = ds.feature_names();
-    // let's reduce to two dimensions
-    let ds_small = DatasetBase::from(ds.records.slice(s![..,0..2]))
-        .with_feature_names(feature_names[0..2].to_vec())
+fn kmeans_on_features_subset(feature_names: &Vec<String>, ds: Array2D) {
+    let ds_small = DatasetBase::from(ds)
+        .with_feature_names(feature_names.clone())
         .to_owned();
     // Our random number generator, seeded for reproducibility
-    let seed = 42;
+    
     let mut rng = thread_rng();
     // `expected_centroids` has shape `(n_centroids, n_features)`
     // i.e. three points in the 2-dimensional plane
@@ -104,7 +102,34 @@ fn main() {
 
 
     let clusters = model.predict(ds_small);
-    let _ = draw_clusters(clusters, &feature_names[0..2].to_vec());
+    let _ = draw_clusters(clusters, feature_names);
+}
+
+type Array2D<'a> = ArrayBase<ndarray::ViewRepr<&'a f64>, Dim<[usize; 2]>> ;
+
+fn main() {
+    println!("Hello, world!");
+
+    let ds = load_iris_dataset();
+    let features = ds.feature_names();
     
+    // let's reduce to two dimensions
+    let feature_names = features[0..2].to_vec();
+    let ds_slice: Array2D = ds.records.slice(s![..,0..2]);
+    kmeans_on_features_subset(&feature_names, ds_slice);
+
+    // let's reduce to two dimensions
+    let feature_names = features[1..3].to_vec();
+    let ds_slice: Array2D = ds.records.slice(s![..,1..3]);
+    kmeans_on_features_subset(&feature_names, ds_slice);
     
+
+    let feature_names = features[2..4].to_vec();
+    let ds_slice: Array2D = ds.records.slice(s![..,2..4]);
+    kmeans_on_features_subset(&feature_names, ds_slice);
+    
+
+    let feature_names = features[0..3].iter().step_by(2).cloned().collect();
+    let ds_slice: Array2D = ds.records.slice(s![..,0..3;2]);
+    kmeans_on_features_subset(&feature_names, ds_slice);
 }
