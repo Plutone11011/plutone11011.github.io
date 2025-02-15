@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{collections::{vec_deque, VecDeque}, error::Error};
 use linfa::prelude::*;
 use ndarray::{prelude::*, Data};
 use rand::prelude::*;
@@ -73,23 +73,9 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
 }
 
 
-fn kmeans_on_features_subset(feature_names: &Vec<String>, ds: Array2D) {
-    let ds_small = DatasetBase::from(ds)
-        .with_feature_names(feature_names.clone())
-        .to_owned();
-    // Our random number generator, seeded for reproducibility
+fn kmeans(ds: &Dataset<f64, usize, Ix1>, n_clusters: usize) -> (Array1<usize>, Array2<f64>) {
     
-    let mut rng = thread_rng();
-    // `expected_centroids` has shape `(n_centroids, n_features)`
-    // i.e. three points in the 2-dimensional plane
-    let expected_centroids = array![[0., 1.], [-0.1, 5.6]];
-    // Let's generate a synthetic dataset: three blobs of observations
-    // (100 points each) centered around our `expected_centroids`
-    let n_clusters = expected_centroids.len_of(Axis(0));
-
-    // Standard K-means
-    
-        
+    let rng = thread_rng();        
     // Let's configure and run our K-means algorithm
     // We use the builder pattern to specify the hyperparameters
     // `n_clusters` is the only mandatory parameter.
@@ -97,39 +83,57 @@ fn kmeans_on_features_subset(feature_names: &Vec<String>, ds: Array2D) {
     // default values will be used.
     let model = KMeans::params_with_rng(n_clusters, rng.clone())
         .tolerance(1e-2)
-        .fit(&ds_small)
+        .fit(ds)
         .expect("KMeans fitted");
 
 
-    let clusters = model.predict(ds_small);
-    let _ = draw_clusters(clusters, feature_names);
+    let clusters= model.predict(ds);
+    let centroids = model.centroids().to_owned();
+    (clusters, centroids)
+    // let _ = draw_clusters(clusters, feature_names);
 }
 
-type Array2D<'a> = ArrayBase<ndarray::ViewRepr<&'a f64>, Dim<[usize; 2]>> ;
 
 fn main() {
     println!("Hello, world!");
 
     let ds = load_iris_dataset();
-    let features = ds.feature_names();
-    
+    let K = 2..8usize;
     // let's reduce to two dimensions
-    let feature_names = features[0..2].to_vec();
-    let ds_slice: Array2D = ds.records.slice(s![..,0..2]);
-    kmeans_on_features_subset(&feature_names, ds_slice);
-
+    let mut wcss : Vec<f64> = vec![];
+    let n_points = ds.records.len_of(Axis(0));
+    for k in K {
+        
+        let (clusters, centroids) = kmeans(&ds, k);
+        //println!("Clusters for k = {}, {:?}", k, clusters);
+        //println!("Centroids shape {:?}", centroids.shape());
+        
+        let mut squared_distances = Array1::zeros(n_points);
+        // for each cluster k, we compute the within cluster sum of squares WCSS, which is defined 
+        // as the sum of squared distances between each point and its cluster centroid
+        for i in 0..n_points {
+            let point = ds.records.row(i);
+            let centroid = centroids.row(clusters[i]); // Get the corresponding centroid
+            let distance = point.to_owned() - centroid.to_owned(); // Compute the difference
+            squared_distances[i] = distance.dot(&distance); // Compute squared distance
+        }
+        wcss.push(squared_distances.sum());
+        // let _ = draw_clusters(clusters, &feature_names);
+    }
+    println!("WCSS calculated as inertia {:?}", wcss);
     // let's reduce to two dimensions
-    let feature_names = features[1..3].to_vec();
-    let ds_slice: Array2D = ds.records.slice(s![..,1..3]);
-    kmeans_on_features_subset(&feature_names, ds_slice);
-    
+    // let feature_names = features[1..3].to_vec();
+    // let ds_slice: Array2D = ds.records.slice(s![..,1..3]);
+    // let clusters = kmeans_on_features_subset(&feature_names, ds_slice);
+    // let _ = draw_clusters(clusters, &feature_names);
 
-    let feature_names = features[2..4].to_vec();
-    let ds_slice: Array2D = ds.records.slice(s![..,2..4]);
-    kmeans_on_features_subset(&feature_names, ds_slice);
-    
+    // let feature_names = features[2..4].to_vec();
+    // let ds_slice: Array2D = ds.records.slice(s![..,2..4]);
+    // let clusters = kmeans_on_features_subset(&feature_names, ds_slice);
+    // let _ = draw_clusters(clusters, &feature_names);
 
-    let feature_names = features[0..3].iter().step_by(2).cloned().collect();
-    let ds_slice: Array2D = ds.records.slice(s![..,0..3;2]);
-    kmeans_on_features_subset(&feature_names, ds_slice);
+    // let feature_names = features[0..3].iter().step_by(2).cloned().collect();
+    // let ds_slice: Array2D = ds.records.slice(s![..,0..3;2]);
+    // let clusters = kmeans_on_features_subset(&feature_names, ds_slice);
+    // let _ = draw_clusters(clusters, &feature_names);
 }
