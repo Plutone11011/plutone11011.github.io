@@ -1,8 +1,9 @@
-use std::{collections::{vec_deque, VecDeque}, error::Error};
+use std::error::Error;
+use std::ops::Range;
 use linfa::prelude::*;
-use ndarray::{prelude::*, Data};
+use ndarray::prelude::*;
 use rand::prelude::*;
-use plotters::prelude::*;
+use plotters::{prelude::*, series};
 use linfa_clustering::KMeans;
 /// Loads the Iris dataset from a CSV file and returns a linfa Dataset
 pub fn load_iris_dataset() -> Dataset<f64, usize, Ix1>{
@@ -51,7 +52,7 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
         // .x_labels(0)
         // .y_labels(0)
         // .label_style(("sans-serif", 20))
-        .draw().unwrap();
+        .draw()?;
 
     ctx.draw_series(
         c1.iter().map(|point| TriangleMarker::new(*point, 5, &BLUE)),
@@ -72,6 +73,35 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
     Ok(())
 }
 
+pub fn draw_wcss(n_clusters: &Range<usize>, wcss: Vec<f64>) -> Result<(), Box<dyn Error>> {
+
+    let drawing_area_width = 1000;
+    let drawing_area_height = 1000;
+    let file_name = "elbow_method.jpg";
+    println!("File name {}", file_name);
+    let root_area = BitMapBackend::new(&file_name, (drawing_area_width, drawing_area_height)).into_drawing_area();
+    
+    root_area.fill(&WHITE)?;
+    
+    let max_clusters = n_clusters.clone().max().unwrap_or_default();
+    let max_wcss = wcss.iter().max_by(|a, b| a.total_cmp(b)).unwrap_or(&300.0);
+    let mut chart = ChartBuilder::on(&root_area)
+        .set_label_area_size(LabelAreaPosition::Left, 40)
+        .set_label_area_size(LabelAreaPosition::Bottom, 40)
+        .margin_bottom(50)
+        .margin_left(80)
+        .caption("Elbow method", ("sans-serif", 40))
+        .build_cartesian_2d(0..max_clusters+2, 0f64..max_wcss+1.)
+        .unwrap();
+
+    chart.configure_mesh().draw()?;
+    let series_data: Vec<(usize, f64)> = n_clusters.clone().zip(wcss.iter()).map(|(n, &w)| (n, w)).collect();
+    chart.draw_series(LineSeries::new(series_data, &RED))?
+        .label("WCSS");
+
+
+    Ok(())
+}
 
 fn kmeans(ds: &Dataset<f64, usize, Ix1>, n_clusters: usize) -> (Array1<usize>, Array2<f64>) {
     
@@ -98,11 +128,11 @@ fn main() {
     println!("Hello, world!");
 
     let ds = load_iris_dataset();
-    let K = 2..8usize;
+    let K: Range<usize> = 2..8usize;
     // let's reduce to two dimensions
     let mut wcss : Vec<f64> = vec![];
     let n_points = ds.records.len_of(Axis(0));
-    for k in K {
+    for k in K.clone() {
         
         let (clusters, centroids) = kmeans(&ds, k);
         //println!("Clusters for k = {}, {:?}", k, clusters);
@@ -121,6 +151,7 @@ fn main() {
         // let _ = draw_clusters(clusters, &feature_names);
     }
     println!("WCSS calculated as inertia {:?}", wcss);
+    let _ = draw_wcss(&K, wcss);
     // let's reduce to two dimensions
     // let feature_names = features[1..3].to_vec();
     // let ds_slice: Array2D = ds.records.slice(s![..,1..3]);
