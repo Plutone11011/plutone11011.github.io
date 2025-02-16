@@ -4,6 +4,7 @@ use linfa::prelude::*;
 use ndarray::prelude::*;
 use rand::prelude::*;
 use plotters::{prelude::*, series};
+use linfa_reduction::Pca;
 use linfa_clustering::KMeans;
 /// Loads the Iris dataset from a CSV file and returns a linfa Dataset
 pub fn load_iris_dataset() -> Dataset<f64, usize, Ix1>{
@@ -17,15 +18,14 @@ pub fn load_iris_dataset() -> Dataset<f64, usize, Ix1>{
     ds
 }
 
-pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<String>) -> Result<(), Box<dyn Error>>{
+pub fn draw_clusters(ds: &Dataset<f64, f64, Ix2>, clusters: &ArrayBase<ndarray::OwnedRepr<usize>, Ix1>) -> Result<(), Box<dyn Error>>{
     
     let mut c1: Vec<(f64,f64)> = Vec::new();
     let mut c2: Vec<(f64,f64)> = Vec::new();
-    
     // split dataset in two clusters
-    for (feature, cluster) in clusters_ds.sample_iter() {
+    for (i, (feature, _)) in ds.sample_iter().enumerate() {
         let point = (feature[0], feature[1]);
-        if cluster.first().unwrap() == &0_usize {
+        if clusters[i] == 0 {
             c1.push(point);
         } else {
             c2.push(point);
@@ -34,8 +34,7 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
     
     let drawing_area_width = 1000;
     let drawing_area_height = 1000;
-    let file_name = format!("clusters_iris_{}.jpg", feature_names.join("_"));
-    println!("File name {}", file_name);
+    let file_name = "clusters_iris.jpg";
     let root_area = BitMapBackend::new(&file_name, (drawing_area_width, drawing_area_height)).into_drawing_area();
     root_area.fill(&WHITE)?;
 
@@ -62,13 +61,9 @@ pub fn draw_clusters(clusters_ds: Dataset<f64, usize, Ix1>, feature_names: &Vec<
     ctx.draw_series(c2.iter().map(|point| Circle::new(*point, 5, &RED)))
         .unwrap();
 
-    root_area.draw_text(&feature_names[0],  &("sans-serif", 20).into_text_style(&root_area), (500, 970))?;
-    root_area.draw_text(&feature_names[1],  &("sans-serif", 20).into_text_style(&root_area), (10, 500))?;
-    // ctx.draw_series(PointSeries::<_,_,Circle<_,_>,_>::new(c1, c1_size, &BLUE))
-    //     .unwrap();
-
-    // ctx.draw_series(PointSeries::<_,_,Circle<_,_>,_>::new(c2, c2_size, &RED))
-    //     .unwrap();
+    // root_area.draw_text(&feature_names[0],  &("sans-serif", 20).into_text_style(&root_area), (500, 970))?;
+    // root_area.draw_text(&feature_names[1],  &("sans-serif", 20).into_text_style(&root_area), (10, 500))?;
+    
 
     Ok(())
 }
@@ -128,7 +123,7 @@ fn main() {
     println!("Hello, world!");
 
     let ds = load_iris_dataset();
-    let K: Range<usize> = 2..8usize;
+    let K: Range<usize> = 2..10usize;
     // let's reduce to two dimensions
     let mut wcss : Vec<f64> = vec![];
     let n_points = ds.records.len_of(Axis(0));
@@ -152,6 +147,14 @@ fn main() {
     }
     println!("WCSS calculated as inertia {:?}", wcss);
     let _ = draw_wcss(&K, wcss);
+
+    let (clusters, _) = kmeans(&ds, 6);
+    println!("Clusters {:?}", clusters);
+    let embedding = Pca::params(2)
+        .fit(&ds).unwrap();
+    let reduced_ds = embedding.predict(ds);
+    println!("PCAd dataset {:?}", reduced_ds.records.shape());
+    let _ = draw_clusters(&reduced_ds, &clusters);
     // let's reduce to two dimensions
     // let feature_names = features[1..3].to_vec();
     // let ds_slice: Array2D = ds.records.slice(s![..,1..3]);
