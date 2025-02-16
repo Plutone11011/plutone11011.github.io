@@ -1,11 +1,12 @@
 use std::error::Error;
+use std::collections::HashMap;
 use std::ops::Range;
 use linfa::prelude::*;
 use ndarray::prelude::*;
 use rand::prelude::*;
-use plotters::{prelude::*, series};
+use plotters::{prelude::*, style::full_palette::PURPLE};
 use linfa_reduction::Pca;
-use linfa_clustering::KMeans;
+use linfa_clustering::{KMeans, Dbscan};
 /// Loads the Iris dataset from a CSV file and returns a linfa Dataset
 pub fn load_iris_dataset() -> Dataset<f64, usize, Ix1>{
 
@@ -19,22 +20,22 @@ pub fn load_iris_dataset() -> Dataset<f64, usize, Ix1>{
 }
 
 pub fn draw_clusters(ds: &Dataset<f64, f64, Ix2>, clusters: &ArrayBase<ndarray::OwnedRepr<usize>, Ix1>) -> Result<(), Box<dyn Error>>{
-    
-    let mut c1: Vec<(f64,f64)> = Vec::new();
-    let mut c2: Vec<(f64,f64)> = Vec::new();
+
+
+    let mut clusters_points: HashMap<usize, Vec<(f64,f64)>> = HashMap::new();
+
     // split dataset in two clusters
     for (i, (feature, _)) in ds.sample_iter().enumerate() {
+        // assume dataset has been reduced to two dimensions with PCA or other similar method
         let point = (feature[0], feature[1]);
-        if clusters[i] == 0 {
-            c1.push(point);
-        } else {
-            c2.push(point);
-        }
+        clusters_points.entry(clusters[i]).and_modify(|points_in_cluster| points_in_cluster.push(point)).or_insert(vec![]);
     }
     
+    println!("Clusters to points {:?}", clusters_points);
+
     let drawing_area_width = 1000;
     let drawing_area_height = 1000;
-    let file_name = "clusters_iris.jpg";
+    let file_name = "clusters_iris_kmeans.jpg";
     let root_area = BitMapBackend::new(&file_name, (drawing_area_width, drawing_area_height)).into_drawing_area();
     root_area.fill(&WHITE)?;
 
@@ -43,6 +44,7 @@ pub fn draw_clusters(ds: &Dataset<f64, f64, Ix2>, clusters: &ArrayBase<ndarray::
         .set_label_area_size(LabelAreaPosition::Bottom, 40)
         .margin_bottom(50)
         .margin_left(80)
+        .margin_right(10)
         .caption("Clusters", ("sans-serif", 40))
         .build_cartesian_2d(-5f64..10f64, -5f64..10f64)
         .unwrap();
@@ -53,13 +55,14 @@ pub fn draw_clusters(ds: &Dataset<f64, f64, Ix2>, clusters: &ArrayBase<ndarray::
         // .label_style(("sans-serif", 20))
         .draw()?;
 
-    ctx.draw_series(
-        c1.iter().map(|point| TriangleMarker::new(*point, 5, &BLUE)),
-    )
-    .unwrap();
-
-    ctx.draw_series(c2.iter().map(|point| Circle::new(*point, 5, &RED)))
+    // assuming 6 clusters with elbow 
+    let colors = [&PURPLE, &GREEN, &RED, &BLACK, &YELLOW, &BLUE];
+    for (i, (_,points)) in clusters_points.iter().enumerate(){
+        ctx.draw_series(
+            points.iter().map(|point| Circle::new(*point, 5, colors[i])),
+        )
         .unwrap();
+    }
 
     // root_area.draw_text(&feature_names[0],  &("sans-serif", 20).into_text_style(&root_area), (500, 970))?;
     // root_area.draw_text(&feature_names[1],  &("sans-serif", 20).into_text_style(&root_area), (10, 500))?;
@@ -85,6 +88,7 @@ pub fn draw_wcss(n_clusters: &Range<usize>, wcss: Vec<f64>) -> Result<(), Box<dy
         .set_label_area_size(LabelAreaPosition::Bottom, 40)
         .margin_bottom(50)
         .margin_left(80)
+        .margin_right(10)
         .caption("Elbow method", ("sans-serif", 40))
         .build_cartesian_2d(0..max_clusters+2, 0f64..max_wcss+1.)
         .unwrap();
@@ -118,6 +122,23 @@ fn kmeans(ds: &Dataset<f64, usize, Ix1>, n_clusters: usize) -> (Array1<usize>, A
     // let _ = draw_clusters(clusters, feature_names);
 }
 
+fn dbscan(ds: &Dataset<f64, usize, Ix1>, min_points: usize) -> Array1<Option<usize>> {
+    
+           
+
+    let clusters = Dbscan::params(min_points)
+        .tolerance(0.5)
+        .transform(&ds.records)
+        .unwrap();
+
+
+    // let clusters= model.predict(ds);
+    // let centroids = model.centroids().to_owned();
+    clusters
+    // let _ = draw_clusters(clusters, feature_names);
+}
+
+
 
 fn main() {
     println!("Hello, world!");
@@ -148,26 +169,16 @@ fn main() {
     println!("WCSS calculated as inertia {:?}", wcss);
     let _ = draw_wcss(&K, wcss);
 
-    let (clusters, _) = kmeans(&ds, 6);
-    println!("Clusters {:?}", clusters);
+    let (k_means_clusters, _) = kmeans(&ds, 6);
+    println!("KMeans clusters {:?}", k_means_clusters);
+    
+    
+    // dbscan
+    let dbscan_clusters = dbscan(&ds, 2);
+    println!("Dbscan clusters {:?}", dbscan_clusters);
     let embedding = Pca::params(2)
         .fit(&ds).unwrap();
     let reduced_ds = embedding.predict(ds);
     println!("PCAd dataset {:?}", reduced_ds.records.shape());
-    let _ = draw_clusters(&reduced_ds, &clusters);
-    // let's reduce to two dimensions
-    // let feature_names = features[1..3].to_vec();
-    // let ds_slice: Array2D = ds.records.slice(s![..,1..3]);
-    // let clusters = kmeans_on_features_subset(&feature_names, ds_slice);
-    // let _ = draw_clusters(clusters, &feature_names);
-
-    // let feature_names = features[2..4].to_vec();
-    // let ds_slice: Array2D = ds.records.slice(s![..,2..4]);
-    // let clusters = kmeans_on_features_subset(&feature_names, ds_slice);
-    // let _ = draw_clusters(clusters, &feature_names);
-
-    // let feature_names = features[0..3].iter().step_by(2).cloned().collect();
-    // let ds_slice: Array2D = ds.records.slice(s![..,0..3;2]);
-    // let clusters = kmeans_on_features_subset(&feature_names, ds_slice);
-    // let _ = draw_clusters(clusters, &feature_names);
+    let _ = draw_clusters(&reduced_ds, &k_means_clusters);
 }
