@@ -4,7 +4,7 @@ use std::ops::Range;
 use linfa::prelude::*;
 use ndarray::prelude::*;
 use rand::prelude::*;
-use plotters::{prelude::*, style::full_palette::PURPLE};
+use plotters::{prelude::*, style::full_palette::{PURPLE, GREY, ORANGE}};
 use linfa_reduction::Pca;
 use linfa_clustering::{KMeans, Dbscan};
 /// Loads the Iris dataset from a CSV file and returns a linfa Dataset
@@ -19,23 +19,12 @@ pub fn load_iris_dataset() -> Dataset<f64, usize, Ix1>{
     ds
 }
 
-pub fn draw_clusters(ds: &Dataset<f64, f64, Ix2>, clusters: &ArrayBase<ndarray::OwnedRepr<usize>, Ix1>) -> Result<(), Box<dyn Error>>{
-
-
-    let mut clusters_points: HashMap<usize, Vec<(f64,f64)>> = HashMap::new();
-
-    // split dataset in two clusters
-    for (i, (feature, _)) in ds.sample_iter().enumerate() {
-        // assume dataset has been reduced to two dimensions with PCA or other similar method
-        let point = (feature[0], feature[1]);
-        clusters_points.entry(clusters[i]).and_modify(|points_in_cluster| points_in_cluster.push(point)).or_insert(vec![]);
-    }
+pub fn draw_clusters(clusters_points: &HashMap<usize, Vec<(f64,f64)>>, colors: &Vec<&RGBColor>, file_name: &str) -> Result<(), Box<dyn Error>>{
     
     println!("Clusters to points {:?}", clusters_points);
 
     let drawing_area_width = 1000;
     let drawing_area_height = 1000;
-    let file_name = "clusters_iris_kmeans.jpg";
     let root_area = BitMapBackend::new(&file_name, (drawing_area_width, drawing_area_height)).into_drawing_area();
     root_area.fill(&WHITE)?;
 
@@ -46,9 +35,9 @@ pub fn draw_clusters(ds: &Dataset<f64, f64, Ix2>, clusters: &ArrayBase<ndarray::
         .margin_left(80)
         .margin_right(10)
         .caption("Clusters", ("sans-serif", 40))
-        .build_cartesian_2d(-5f64..10f64, -5f64..10f64)
+        .build_cartesian_2d(2f64..10f64, 0f64..6f64)
         .unwrap();
-
+    
     ctx.configure_mesh()
         // .x_labels(0)
         // .y_labels(0)
@@ -56,14 +45,18 @@ pub fn draw_clusters(ds: &Dataset<f64, f64, Ix2>, clusters: &ArrayBase<ndarray::
         .draw()?;
 
     // assuming 6 clusters with elbow 
-    let colors = [&PURPLE, &GREEN, &RED, &BLACK, &YELLOW, &BLUE];
-    for (i, (_,points)) in clusters_points.iter().enumerate(){
+    
+    for (i, (cluster,points)) in clusters_points.iter().enumerate(){
+        let cluster_color = Palette99::pick(*cluster).to_rgba();
         ctx.draw_series(
             points.iter().map(|point| Circle::new(*point, 5, colors[i])),
-        )
-        .unwrap();
+        )?
+        .label(format!("Cluster {}", cluster))
+        .legend(move |(x, y)| {
+            Circle::new((x, y), 5, cluster_color.filled())
+        });
     }
-
+    ctx.configure_series_labels().border_style(&BLACK).draw()?;
     // root_area.draw_text(&feature_names[0],  &("sans-serif", 20).into_text_style(&root_area), (500, 970))?;
     // root_area.draw_text(&feature_names[1],  &("sans-serif", 20).into_text_style(&root_area), (10, 500))?;
     
@@ -176,9 +169,28 @@ fn main() {
     // dbscan
     let dbscan_clusters = dbscan(&ds, 2);
     println!("Dbscan clusters {:?}", dbscan_clusters);
+
+
     let embedding = Pca::params(2)
         .fit(&ds).unwrap();
     let reduced_ds = embedding.predict(ds);
     println!("PCAd dataset {:?}", reduced_ds.records.shape());
-    let _ = draw_clusters(&reduced_ds, &k_means_clusters);
+
+    let mut clusters_points_k_means: HashMap<usize, Vec<(f64,f64)>> = HashMap::new();
+    let mut clusters_points_dbscan: HashMap<usize, Vec<(f64,f64)>> = HashMap::new();
+    let k_means_colors: Vec<&RGBColor> = vec![&PURPLE, &GREEN, &RED, &BLACK, &ORANGE, &BLUE];
+    let dbscan_colors: Vec<&RGBColor> = vec![&PURPLE, &GREEN, &RED, &BLACK, &ORANGE, &BLUE, &GREY];
+
+    // split dataset in two clusters
+    for (i, (feature, _)) in reduced_ds.sample_iter().enumerate() {
+        // assume dataset has been reduced to two dimensions with PCA or other similar method
+        let point = (feature[0], feature[1]);
+        clusters_points_k_means.entry(k_means_clusters[i]).and_modify(|points_in_cluster| points_in_cluster.push(point)).or_insert(vec![]);
+        clusters_points_dbscan.entry(match dbscan_clusters[i]{
+            Some(cluster) => cluster,
+            None => dbscan_clusters.iter().max().unwrap().unwrap() + 1
+        }).and_modify(|points_in_cluster| points_in_cluster.push(point)).or_insert(vec![]);
+    }
+    let _ = draw_clusters(&clusters_points_k_means, &k_means_colors, "clusters_iris_kmeans.jpg");
+    let _ = draw_clusters(&clusters_points_dbscan, &dbscan_colors, "clusters_iris_dbscan.jpg");
 }
