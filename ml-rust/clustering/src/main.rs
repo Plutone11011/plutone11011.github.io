@@ -19,7 +19,7 @@ pub fn load_iris_dataset() -> Dataset<f64, usize, Ix1>{
     ds
 }
 
-pub fn draw_clusters(clusters_points: &HashMap<usize, Vec<(f64,f64)>>, colors: &Vec<&RGBColor>, file_name: &str) -> Result<(), Box<dyn Error>>{
+pub fn draw_clusters(clusters_points: &HashMap<usize, Vec<(f64,f64)>>, colors: &Vec<&RGBColor>, file_name: &str, labels: &Vec<String>) -> Result<(), Box<dyn Error>>{
     
     println!("Clusters to points {:?}", clusters_points);
 
@@ -46,14 +46,13 @@ pub fn draw_clusters(clusters_points: &HashMap<usize, Vec<(f64,f64)>>, colors: &
 
     // assuming 6 clusters with elbow 
     
-    for (i, (cluster,points)) in clusters_points.iter().enumerate(){
-        let cluster_color = Palette99::pick(*cluster).to_rgba();
+    for (i, (_,points)) in clusters_points.iter().enumerate(){
         ctx.draw_series(
             points.iter().map(|point| Circle::new(*point, 5, colors[i])),
         )?
-        .label(format!("Cluster {}", cluster))
+        .label(labels[i].clone())
         .legend(move |(x, y)| {
-            Circle::new((x, y), 5, cluster_color.filled())
+            Circle::new((x, y), 5, colors[i].filled())
         });
     }
     ctx.configure_series_labels().border_style(&BLACK).draw()?;
@@ -115,12 +114,12 @@ fn kmeans(ds: &Dataset<f64, usize, Ix1>, n_clusters: usize) -> (Array1<usize>, A
     // let _ = draw_clusters(clusters, feature_names);
 }
 
-fn dbscan(ds: &Dataset<f64, usize, Ix1>, min_points: usize) -> Array1<Option<usize>> {
+fn dbscan(ds: &Dataset<f64, usize, Ix1>, min_points: usize, tol: f64) -> Array1<Option<usize>> {
     
            
 
     let clusters = Dbscan::params(min_points)
-        .tolerance(0.5)
+        .tolerance(tol)
         .transform(&ds.records)
         .unwrap();
 
@@ -162,12 +161,13 @@ fn main() {
     println!("WCSS calculated as inertia {:?}", wcss);
     let _ = draw_wcss(&K, wcss);
 
-    let (k_means_clusters, _) = kmeans(&ds, 6);
+    let n_clusters = 3;
+    let (k_means_clusters, _) = kmeans(&ds, n_clusters);
     println!("KMeans clusters {:?}", k_means_clusters);
     
     
     // dbscan
-    let dbscan_clusters = dbscan(&ds, 2);
+    let dbscan_clusters = dbscan(&ds, 5, 0.5);
     println!("Dbscan clusters {:?}", dbscan_clusters);
 
 
@@ -178,9 +178,9 @@ fn main() {
 
     let mut clusters_points_k_means: HashMap<usize, Vec<(f64,f64)>> = HashMap::new();
     let mut clusters_points_dbscan: HashMap<usize, Vec<(f64,f64)>> = HashMap::new();
-    let k_means_colors: Vec<&RGBColor> = vec![&PURPLE, &GREEN, &RED, &BLACK, &ORANGE, &BLUE];
-    let dbscan_colors: Vec<&RGBColor> = vec![&PURPLE, &GREEN, &RED, &BLACK, &ORANGE, &BLUE, &GREY];
-
+    let k_means_colors: Vec<&RGBColor> = vec![&BLUE, &GREEN, &RED];
+    let mut dbscan_colors: Vec<&RGBColor> = vec![&BLUE, &GREEN, &RED];
+    
     // split dataset in two clusters
     for (i, (feature, _)) in reduced_ds.sample_iter().enumerate() {
         // assume dataset has been reduced to two dimensions with PCA or other similar method
@@ -188,9 +188,21 @@ fn main() {
         clusters_points_k_means.entry(k_means_clusters[i]).and_modify(|points_in_cluster| points_in_cluster.push(point)).or_insert(vec![]);
         clusters_points_dbscan.entry(match dbscan_clusters[i]{
             Some(cluster) => cluster,
-            None => dbscan_clusters.iter().max().unwrap().unwrap() + 1
+            None => {
+                dbscan_colors.push(&ORANGE);
+                dbscan_clusters.iter().max().unwrap().unwrap() + 1
+            }
         }).and_modify(|points_in_cluster| points_in_cluster.push(point)).or_insert(vec![]);
     }
-    let _ = draw_clusters(&clusters_points_k_means, &k_means_colors, "clusters_iris_kmeans.jpg");
-    let _ = draw_clusters(&clusters_points_dbscan, &dbscan_colors, "clusters_iris_dbscan.jpg");
+    let kmeans_labels: Vec<String> = clusters_points_k_means.keys().map(|cluster| format!("Cluster {}", cluster)).collect();
+    let dbscan_labels: Vec<String> = clusters_points_dbscan.keys().map(|cluster| {
+        if dbscan_clusters.iter().max().unwrap().unwrap() + 1 == *cluster {
+            String::from("Noisy samples")
+        }
+        else {
+            format!("Cluster {}", cluster)
+        }
+    }).collect();
+    let _ = draw_clusters(&clusters_points_k_means, &k_means_colors, "clusters_iris_kmeans.jpg", &kmeans_labels);
+    let _ = draw_clusters(&clusters_points_dbscan, &dbscan_colors, "clusters_iris_dbscan.jpg", &dbscan_labels);
 }

@@ -2,7 +2,7 @@
 layout: custom_post
 title: "Rust: logistic regression"
 date: 2025-02-09 10:09:00 +0100
-categories: rust
+categories: logregression
 #permalink: /seq2seq
 #categories: encoder-decoder keras
 #permalink: CoRec
