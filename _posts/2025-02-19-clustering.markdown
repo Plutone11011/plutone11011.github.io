@@ -126,5 +126,6 @@ These are the clusters produced by DBSCAN
 Notice how, in both cases, we use a dimensionality reduction technique, PCA, to plot the otherwise 4-dimensional Iris dataset in two dimensions.
 DBSCAN finds some points to be noisy, non-core, and two clusters, instead of the three that we gave to KMeans.
 
-
-
+# Conclusion
+Clustering is a core unsupervised learning task, KMeans and DBSCAN are two well-known methods in classic machine learning. There are other ways to cluster data,
+like using autoencoders or embeddings, however, for a smaller dataset like Iris, simpler methods are sufficient. 

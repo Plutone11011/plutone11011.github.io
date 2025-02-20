@@ -120,3 +120,6 @@ classes    | 1          | 2          | 0
 
 Confusion matrix shows on the rows the target classes, while on the columns the predicted classes. Thus, on the diagonal we have the number of correct predictions, while the other elements show wrong predictions.
 
+# Conclusion
+Logistic regression is a basic method for classification, which can be useful for tabular data like the Iris Dataset, as we can see from the results, where only a single sample was misclassified.
+
