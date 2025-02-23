@@ -10,3 +10,4 @@ Gemfile.lock
 ml-rust/**/target
 
 *.jpg
+*.svg
