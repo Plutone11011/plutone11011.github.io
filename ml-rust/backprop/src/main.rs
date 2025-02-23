@@ -1,5 +1,16 @@
 
 use std::ops::{Add, Mul, Sub, Div};
+use std::fs::File;
+use std::io::*;
+use graphviz_rust::dot_generator::*;
+use graphviz_rust::dot_structures::*;
+use graphviz_rust::{
+    attributes::{GraphAttributes, NodeAttributes},
+    cmd::{CommandArg, Format},
+    exec, exec_dot, parse,
+    printer::{DotPrinter, PrinterContext},
+};
+
 
 #[derive(Default)]
 enum Op {
@@ -18,8 +29,10 @@ struct Value {
     children: Vec<Self>, // children of each value, e.g. a = b + c, b and c are children of a
     op: Op,
     grad: f64,
-    backward: Option<Box<dyn FnMut()>>
+    backward: Option<Box<dyn FnMut()>>,
+    label: String 
 } 
+
 
 
 impl Value {
@@ -35,6 +48,10 @@ impl Value {
 
     fn set_op(&mut self, op: Op) -> (){
         self.op = op
+    }
+
+    fn set_label(&mut self, label: &str) -> (){
+        self.label = label.to_string();
     }
     
     fn set_gradient(&mut self, grad: f64) -> (){
@@ -66,6 +83,7 @@ impl Add for Value {
         out.set_backward(Some(Box::new(backward)));
         out.set_data(self.data + rhs.data);
         out.set_op(Op::Add);
+        out.set_label("+");
         out.set_children(vec![self, rhs]);
         
         out
@@ -87,16 +105,49 @@ impl Mul for Value {
         out.set_backward(Some(Box::new(backward)));
         out.set_data(self.data * rhs.data);
         out.set_op(Op::Mult);
+        out.set_label("*");
         out.set_children(vec![self, rhs]);
         
         out
     }
 }
 
-
+fn save_svg_to_file(svg_data: &[u8], file_path: &str) -> Result<()> {
+    // Create or truncate the file
+    let mut file = File::create(file_path)?;
+    // Write the SVG data to the file
+    file.write_all(svg_data)?;
+    Ok(())
+}
 
 fn main() {
-    println!("Hello, world!");
+    let g: Graph = parse(
+        r#"
+        strict digraph Comp {
+            
+            L[shape=square]
+            L[label="L 4.0"]
+            op1 -> L
+            op1[label = "+"]
+            d[label = "d -6.0"]
+            c[label = "c 10.0"]
+            c[shape=square]
+            d[shape=square]
+
+            c -> op1
+            d -> op1
+            
+        }
+        "#,
+    ).unwrap();
 
 
+    let graph_svg = exec(
+        g,
+        &mut PrinterContext::default(),
+        vec![Format::Svg.into()],
+    )
+    .unwrap();
+
+    let _ = save_svg_to_file(&graph_svg, "comp_graph.svg");
 } 
