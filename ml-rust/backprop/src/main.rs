@@ -78,8 +78,8 @@ impl Add for Value {
 
 
         let backward = move || {
-            self.grad = 1. * out.grad;
-            rhs.grad = 1. * out.grad;
+            self.grad += 1. * out.grad;
+            rhs.grad += 1. * out.grad;
         };
         out.set_backward(Some(Box::new(backward)));
         out.set_data(self.data + rhs.data);
@@ -99,8 +99,8 @@ impl Mul for Value {
 
 
         let backward = move || {
-            self.grad = rhs.data * out.grad;
-            rhs.grad = self.data * out.grad;
+            self.grad += rhs.data * out.grad;
+            rhs.grad += self.data * out.grad;
         };
         out.set_backward(Some(Box::new(backward)));
         out.set_data(self.data * rhs.data);
