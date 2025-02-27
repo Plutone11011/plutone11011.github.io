@@ -1,19 +1,18 @@
 
-use std::fmt::format;
+use std::collections::{HashSet, VecDeque};
 use std::ops::{Add, Mul, Sub, Div};
 use std::fs::File;
 use std::io::*;
-use graphviz_rust::dot_generator::*;
 use graphviz_rust::dot_structures::*;
 use graphviz_rust::{
-    attributes::{GraphAttributes, NodeAttributes},
-    cmd::{CommandArg, Format},
-    exec, exec_dot, parse,
-    printer::{DotPrinter, PrinterContext},
+    cmd::Format,
+    exec, parse,
+    printer::PrinterContext,
 };
+use uuid::Uuid;
 
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 enum Op {
     Add,
     Mult,
@@ -24,27 +23,27 @@ enum Op {
     NoOp
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 struct Value {
+    _id: Uuid,
     data: f64,
     children: Vec<Self>, // children of each value, e.g. a = b + c, b and c are children of a
     op: Op,
     grad: f64,
-    backward: Option<Box<dyn FnMut()>>,
+    backward: Option<fn(&mut Value)>,
     label: String 
 } 
 
 
 
 impl Value {
-    // fn new(data: f64, children: Vec<Value>, op: Op) -> Self {
-
-    //     Value { data: data, children: children, op: op, grad: 0., backward: None }
-    
-    // }
 
     fn set_children(&mut self, children: Vec<Value>) -> (){
         self.children = children;
+    }
+
+    fn set_id(&mut self, id: Uuid) -> (){
+        self._id = id;
     }
 
     fn set_op(&mut self, op: Op) -> (){
@@ -63,25 +62,71 @@ impl Value {
         self.data = data
     }
 
-    fn set_backward(&mut self, backward: Option<Box<dyn FnMut()>>) -> () {
+    fn set_backward(&mut self, backward: Option<fn(&mut Value)>) -> () {
         self.backward = backward;
     }
+
+    fn _backward(&mut self) {
+        if let Some(f) = self.backward {
+            f(self);
+        }
+    }
+
+    fn backward_add(v: &mut Value) {
+        if v.children.len() != 2 {
+            return; // Safety check
+        }
+        //let (lhs, rhs) = (&mut v.children[0], &mut v.children[1]);
+        v.children[0].grad += v.grad;
+        v.children[1].grad += v.grad;
+    }
+
+    fn backward_mult(v: &mut Value) {
+        if v.children.len() != 2 {
+            return; // Safety check
+        }
+        //let (lhs, rhs) = (&mut v.children[0], &mut v.children[1]);
+        v.children[0].grad += v.children[1].data * v.grad;
+        v.children[1].grad += v.children[0].data * v.grad;
+    }
+
+    fn backward(&mut self) {
+        self.set_gradient(1.0);
+
+        let mut visited = HashSet::new();
+        let mut stack = VecDeque::new();
+        //let mut comp_graph_topo_sorted: Vec<&mut Value> = Vec::new();
+
+        stack.push_back(self); // Start with the current node
+
+        while let Some(node) = stack.pop_back() {
+            if !visited.contains(&node._id) {
+                visited.insert(node._id);
+
+                node._backward();
+                // Push children onto the stack for processing
+                for i in  0..node.children.len() {
+                    node.children[i]._backward();
+                }
+
+
+
+            }
+        }
+        
+    }
+
 }
 
 impl Add for Value {
     type Output = Value;
 
 
-    fn add(mut self, mut rhs: Self) -> Self::Output {
+    fn add(self, rhs: Self) -> Self::Output {
 
         let mut out = Value::default();
-
-
-        let backward = move || {
-            self.grad += 1. * out.grad;
-            rhs.grad += 1. * out.grad;
-        };
-        out.set_backward(Some(Box::new(backward)));
+        out.set_id(Uuid::new_v4());
+        out.set_backward(Some(Self::backward_add));
         out.set_data(self.data + rhs.data);
         out.set_op(Op::Add);
         out.set_children(vec![self, rhs]);
@@ -91,18 +136,14 @@ impl Add for Value {
 }
 
 
+
 impl Mul for Value {
     type Output = Value;
 
-    fn mul(mut self, mut rhs: Self) -> Self::Output {
+    fn mul(self, rhs: Self) -> Self::Output {
         let mut out = Value::default();
-
-
-        let backward = move || {
-            self.grad += rhs.data * out.grad;
-            rhs.grad += self.data * out.grad;
-        };
-        out.set_backward(Some(Box::new(backward)));
+        out.set_id(Uuid::new_v4());
+        out.set_backward(Some(Self::backward_mult));
         out.set_data(self.data * rhs.data);
         out.set_op(Op::Mult);
         out.set_children(vec![self, rhs]);
@@ -124,7 +165,7 @@ fn build_graphviz_op_node(id: &str, label: &str) -> String{
 }
 
 fn build_graphviz_data_node(id: &str, label: &str, data: f64, grad: f64) -> String{
-    format!("{}[shape={}, label=\"{} | {} | {}\"]\n", id, "square", label, data, grad)
+    format!("{}[shape={}, label=\"{} | data {} | grad {}\"]\n", id, "square", label, data, grad)
 }
 
 fn build_computational_graph(root: &Value, current_op_n: usize) -> String{
@@ -163,31 +204,12 @@ fn build_computational_graph(root: &Value, current_op_n: usize) -> String{
     
 }
 
-fn main() {
-    let s: &str = "square";
-    let mut a = Value::default();
-    a.set_data(2.0);
-    a.set_label("a");
-    let mut b = Value::default();
-    b.set_data(-3.0);
-    b.set_label("b");
-
-    let mut c = a+b;
-    c.set_label("c");
-    let mut d = Value::default();
-    d.set_data(1.0);
-    d.set_label("d");
-
-    let mut L = c*d;
-    L.set_label("L");
-
-    
-
+fn draw_comp(value: &Value){
     let graph_str = format!(r#" strict digraph Comp {{
-                {}
-            "#, build_graphviz_data_node(L.label.as_str(), L.label.as_str(), L.data, L.grad));
-    
-    let final_str = format!("{} {}}}", graph_str, build_computational_graph(&L, 0));
+        {}
+    "#, build_graphviz_data_node(value.label.as_str(), value.label.as_str(), value.data, value.grad));
+
+    let final_str = format!("{} {}}}", graph_str, build_computational_graph(value, 0));
     println!("{}", final_str);
     // let g: Graph = parse(
     //     &final_str).unwrap();
@@ -205,11 +227,42 @@ fn main() {
     // d -> op1
 
     let graph_svg = exec(
-        g,
-        &mut PrinterContext::default(),
-        vec![Format::Svg.into()],
+    g,
+    &mut PrinterContext::default(),
+    vec![Format::Svg.into()],
     )
     .unwrap();
 
     let _ = save_svg_to_file(&graph_svg, "comp_graph.svg");
+}
+
+fn main() {
+    let s: &str = "square";
+    let mut a = Value::default();
+    a.set_id(Uuid::new_v4());
+    println!("{}", a._id);
+    a.set_data(2.0);
+    a.set_label("a");
+    let mut b = Value::default();
+    b.set_id(Uuid::new_v4());
+    println!("{}", b._id);
+    b.set_data(-3.0);
+    b.set_label("b");
+
+    let mut c = a+b;
+    c.set_label("c");
+    println!("{}", c._id);
+    let mut d = Value::default();
+    d.set_id(Uuid::new_v4());
+    println!("{}", d._id);
+    d.set_data(1.0);
+    d.set_label("d");
+
+    let mut L = c*d;
+    println!("{}", L._id);
+    L.set_label("L");
+    
+    L.set_gradient(1.0);
+    L.backward();
+    draw_comp(&L);
 } 
