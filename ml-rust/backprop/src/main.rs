@@ -3,7 +3,8 @@ use std::collections::{HashSet, VecDeque};
 use std::ops::{Add, Mul, Sub, Div};
 use std::fs::File;
 use std::io::*;
-use graphviz_rust::dot_structures::*;
+use rand::Rng;
+use rand::distr::{Alphanumeric, SampleString};
 use graphviz_rust::{
     cmd::Format,
     exec, parse,
@@ -33,7 +34,6 @@ struct Value {
     backward: Option<fn(&mut Value)>,
     label: String 
 } 
-
 
 
 impl Value {
@@ -118,7 +118,7 @@ impl Value {
 
 }
 
-impl Add for Value {
+impl Add<Self> for Value {
     type Output = Value;
 
 
@@ -135,6 +135,29 @@ impl Add for Value {
     }
 }
 
+impl Add<f64> for Value {
+    type Output = Value;
+
+
+    fn add(self, rhs: f64) -> Self::Output {
+        let mut rhs_val = Value::default();
+        rhs_val.set_id(Uuid::new_v4());
+        rhs_val.set_data(rhs);
+
+        let mut rng = rand::rng();
+        let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
+        rhs_val.set_label(&chars);
+        
+        let mut out = Value::default();
+        out.set_id(Uuid::new_v4());
+        out.set_backward(Some(Self::backward_add));
+        out.set_data(self.data + rhs_val.data);
+        out.set_op(Op::Add);
+        out.set_children(vec![self, rhs_val]);
+        
+        out
+    }
+}
 
 
 impl Mul for Value {
@@ -147,6 +170,30 @@ impl Mul for Value {
         out.set_data(self.data * rhs.data);
         out.set_op(Op::Mult);
         out.set_children(vec![self, rhs]);
+        
+        out
+    }
+}
+
+impl Mul<f64> for Value {
+    type Output = Value;
+
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        let mut rhs_val = Value::default();
+        rhs_val.set_id(Uuid::new_v4());
+        rhs_val.set_data(rhs);
+
+        let mut rng = rand::rng();
+        let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
+        rhs_val.set_label(&chars);
+
+        let mut out = Value::default();
+        out.set_id(Uuid::new_v4());
+        out.set_backward(Some(Self::backward_mult));
+        out.set_data(self.data * rhs_val.data);
+        out.set_op(Op::Mult);
+        out.set_children(vec![self, rhs_val]);
         
         out
     }
@@ -168,13 +215,7 @@ fn build_graphviz_data_node(id: &str, label: &str, data: f64, grad: f64) -> Stri
     format!("{}[shape={}, label=\"{} | data {} | grad {}\"]\n", id, "square", label, data, grad)
 }
 
-fn build_computational_graph(root: &Value, current_op_n: usize) -> String{
-    // 1. if op is set,  build node string
-    // with specific label for it, as well as shape
-    // 2. connect edge from op node to current root node
-    // 3. if children are present, create node for both of them
-    // 4. create edge connecting both to op node
-    // 5. recursion over children
+fn build_computational_graph(root: &Value, mut current_op_n: usize) -> String{
 
     let mut graphviz_str: String = String::new();
     if root.children.is_empty() {
@@ -196,7 +237,8 @@ fn build_computational_graph(root: &Value, current_op_n: usize) -> String{
     for child in root.children.iter(){
         graphviz_str.push_str(&build_graphviz_data_node(&child.label, &child.label, child.data, child.grad));
         graphviz_str.push_str(&format!("{} -> {}\n", child.label , id_op_node));
-        graphviz_str.push_str(&build_computational_graph(&child, current_op_n+1));
+        current_op_n += 1;
+        graphviz_str.push_str(&build_computational_graph(&child, current_op_n));
     }
 
     graphviz_str
@@ -210,21 +252,32 @@ fn draw_comp(value: &Value){
     "#, build_graphviz_data_node(value.label.as_str(), value.label.as_str(), value.data, value.grad));
 
     let final_str = format!("{} {}}}", graph_str, build_computational_graph(value, 0));
+    // let final_str = "
+    //  strict digraph Comp {
+    //     L[shape=square, label=\"L | data -3 | grad 1\"]
+    //     op0[label=\"*\"]
+    //     op0 -> L
+    //     c[shape=square, label=\"c | data -1 | grad 3\"]
+    //     c -> op0
+    //     op1[label=\"+\"]
+    //     op1 -> c
+    //     a[shape=square, label=\"a | data 2 | grad 3\"]
+    //     a -> op1
+    //     b[shape=square, label=\"b | data -3 | grad 3\"]
+    //     b -> op1
+    //     [shape=square, label=\" | data 3 | grad -1\"]
+    //     d -> op0
+    //     op1[label=\"+\"]
+    //     op1 ->
+    //     d[shape=square, label=\"d | data 1 | grad -1\"]
+    //     d -> op1
+        
+    //     }
+    // ";
     println!("{}", final_str);
     // let g: Graph = parse(
     //     &final_str).unwrap();
     let g = parse(&final_str).unwrap();
-
-    // L[shape=square]
-    // L[label="L 4.0"]
-    // op1 -> L
-    // op1[label = "+"]
-    // d[label = "d -6.0"]
-    // c[label = "c 10.0"]
-    // c[shape=square]
-    // d[shape=square]
-    // c -> op1
-    // d -> op1
 
     let graph_svg = exec(
     g,
@@ -258,7 +311,9 @@ fn main() {
     d.set_data(1.0);
     d.set_label("d");
 
-    let mut L = c*d;
+    let mut e = d + 2.;
+    e.set_label("e");
+    let mut L = c*e;
     println!("{}", L._id);
     L.set_label("L");
     
