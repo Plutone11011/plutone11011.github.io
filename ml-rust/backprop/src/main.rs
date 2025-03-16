@@ -20,6 +20,7 @@ enum Op {
     Mult,
     Sub,
     Div,
+    Pow,
     // NoOp for leaf (input) nodes that are not composed from other functions
     #[default]
     NoOp
@@ -91,6 +92,15 @@ impl Value {
         v.children[1].grad += v.children[0].data * v.grad;
     }
 
+    fn backward_pow(v: &mut Value){
+        if v.children.len() != 2 {
+            return; // Safety check
+        }
+        // x^n = nx^n-1
+        v.children[0].data = v.children[1].data * (v.children[0].data.pow(v.children[1].data - 1.)) * v.grad
+        // second children is a power, gradient doesn't flow back
+    }
+
     fn backward(&mut self) {
         self.set_gradient(1.0);
 
@@ -150,7 +160,7 @@ where
 
         let mut rng = rand::rng();
         let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
-        rhs_val.set_label(&chars);
+        rhs_val.set_label(&format!("scalar_{}", chars));
         
         let mut out = Value::default();
         out.set_id(Uuid::new_v4());
@@ -193,7 +203,8 @@ where
 
         let mut rng = rand::rng();
         let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
-        rhs_val.set_label(&chars);
+        
+        rhs_val.set_label(&format!("scalar_{}", chars));
 
         let mut out = Value::default();
         out.set_id(Uuid::new_v4());
@@ -206,6 +217,32 @@ where
     }
 }
 
+
+impl<T> Pow<T> for Value 
+    where 
+    T: Into<f64> + Copy
+{
+    type Output = Value;
+
+    fn pow(self, rhs: T) -> Self::Output {
+        let mut rhs_val = Value::default();
+        rhs_val.set_id(Uuid::new_v4());
+        rhs_val.set_data(rhs.into());
+
+        let mut rng = rand::rng();
+        let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
+        rhs_val.set_label(&format!("scalar_{}", chars));
+
+        let mut out = Value::default();
+        out.set_id(Uuid::new_v4());
+        out.set_backward(Some(Self::backward_pow));
+        out.set_data(self.data.pow(rhs_val.data));
+        out.set_op(Op::Pow);
+        out.set_children(vec![self, rhs_val]);
+        
+        out
+    }
+}
 
 fn save_svg_to_file(svg_data: &[u8], file_path: &str) -> Result<()> {
     // Create or truncate the file
@@ -237,6 +274,9 @@ fn build_computational_graph(root: &Value, mut current_op_n: usize) -> String{
         Op::Add => {
             graphviz_str.push_str(&build_graphviz_op_node(id_op_node.as_str(), "+"));
         },
+        Op::Pow => {
+            graphviz_str.push_str(&build_graphviz_op_node(id_op_node.as_str(), "**"))
+        }
         _ => {}
     }
 
@@ -319,7 +359,7 @@ fn main() {
     d.set_data(1.0);
     d.set_label("d");
 
-    let mut e = d + 2;
+    let mut e = d.pow(2);
     e.set_label("e");
     let mut L = c*e;
     println!("{}", L._id);
