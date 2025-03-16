@@ -3,6 +3,7 @@ use std::collections::{HashSet, VecDeque};
 use std::ops::{Add, Mul, Sub, Div};
 use std::fs::File;
 use std::io::*;
+use num_traits::Pow;
 use rand::Rng;
 use rand::distr::{Alphanumeric, SampleString};
 use graphviz_rust::{
@@ -135,14 +136,17 @@ impl Add<Self> for Value {
     }
 }
 
-impl Add<f64> for Value {
+impl<T> Add<T> for Value 
+where 
+    T: Into<f64> + Copy
+    {
     type Output = Value;
 
 
-    fn add(self, rhs: f64) -> Self::Output {
+    fn add(self, rhs: T) -> Self::Output {
         let mut rhs_val = Value::default();
         rhs_val.set_id(Uuid::new_v4());
-        rhs_val.set_data(rhs);
+        rhs_val.set_data(rhs.into());
 
         let mut rng = rand::rng();
         let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
@@ -175,14 +179,17 @@ impl Mul for Value {
     }
 }
 
-impl Mul<f64> for Value {
+impl<T> Mul<T> for Value 
+where 
+    T: Into<f64> + Copy
+    {
     type Output = Value;
 
 
-    fn mul(self, rhs: f64) -> Self::Output {
+    fn mul(self, rhs: T) -> Self::Output {
         let mut rhs_val = Value::default();
         rhs_val.set_id(Uuid::new_v4());
-        rhs_val.set_data(rhs);
+        rhs_val.set_data(rhs.into());
 
         let mut rng = rand::rng();
         let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
@@ -198,6 +205,7 @@ impl Mul<f64> for Value {
         out
     }
 }
+
 
 fn save_svg_to_file(svg_data: &[u8], file_path: &str) -> Result<()> {
     // Create or truncate the file
@@ -311,7 +319,7 @@ fn main() {
     d.set_data(1.0);
     d.set_label("d");
 
-    let mut e = d + 2.;
+    let mut e = d + 2;
     e.set_label("e");
     let mut L = c*e;
     println!("{}", L._id);

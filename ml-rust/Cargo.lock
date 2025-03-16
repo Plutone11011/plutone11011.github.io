@@ -101,6 +101,7 @@ name = "backprop"
 version = "0.1.0"
 dependencies = [
  "graphviz-rust",
+ "num-traits",
  "rand 0.9.0",
  "uuid",
 ]
